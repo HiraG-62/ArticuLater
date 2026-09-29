@@ -9,7 +9,10 @@ const script = html.match(/<script type="module" crossorigin src="\.\/(assets\/[
 const style = html.match(/<link rel="stylesheet" crossorigin href="\.\/(assets\/[^"]+\.css)">/)
 if (!script || !style) throw new Error('dist/index.html からスクリプトまたはスタイルを見つけられませんでした')
 
-const js = readFileSync(join(dist, script[1]), 'utf8').replaceAll('</script', '<\\/script')
+// 置換文字（U+FFFD）はライブラリの文字列・正規表現中にしか現れないため、エスケープ表記に置き換えて文字化けと区別する
+const js = readFileSync(join(dist, script[1]), 'utf8')
+  .replaceAll('</script', '<\\/script')
+  .replaceAll('\uFFFD', '\\uFFFD')
 const css = readFileSync(join(dist, style[1]), 'utf8')
 
 const out = `<title>ArticuLater</title>
