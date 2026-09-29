@@ -94,9 +94,6 @@ export function App() {
             {state.doc.name}
           </span>
         </div>
-        <p className="toolbar-hint">
-          選択でMark ・ <kbd>Ctrl</kbd>+ドラッグで通常選択 ・ <kbd>Ctrl</kbd>+<kbd>Z</kbd>で取り消し ・ Markをクリックでメモ／削除
-        </p>
         <div className="toolbar-actions">
           <button type="button" className="button" onClick={() => fileInputRef.current?.click()}>
             開く
