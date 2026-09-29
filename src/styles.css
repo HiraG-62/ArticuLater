@@ -80,9 +80,13 @@ body {
   font-size: 14px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .app {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }
 
@@ -120,6 +124,125 @@ body {
 .toolbar-actions {
   display: flex;
   gap: 8px;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Exportメニュー（D17） */
+.menu-root {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  display: grid;
+  min-width: 12rem;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.menu-item {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--chrome);
+  outline: none;
+}
+
+/* タブ（D13） */
+.tabbar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  overflow-x: auto;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 16rem;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: -1px;
+}
+
+.tab.is-active {
+  background: var(--paper);
+  border-color: var(--line);
+}
+
+.tab-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 4px 7px 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab.is-active .tab-name {
+  color: var(--fg);
+}
+
+.tab-stale {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.tab-close {
+  padding: 2px 8px 3px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tab-close:hover {
+  color: var(--fg);
+  background: var(--chrome);
+}
+
+.tab-name:focus-visible,
+.tab-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .button {
@@ -166,8 +289,15 @@ body {
 
 /* 作業領域 */
 .workspace {
+  flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.documents {
+  position: relative;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -176,9 +306,98 @@ body {
 }
 
 .doc-pane {
-  position: relative;
-  min-height: 0;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
+}
+
+/* 外部で更新されたときの通知（D6・D17）。本文の位置を動かさないよう、上に重ねる */
+.stale-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 16px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stale-reload {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* 起動画面（D17） */
+.empty {
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 32px 16px;
+  background: var(--paper);
+}
+
+.empty-body {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  max-width: 34rem;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.empty-lead {
+  margin: 0;
+  color: var(--muted);
+}
+
+.empty-open {
+  padding: 8px 20px;
+  font-size: 14px;
+}
+
+.guide {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin: 16px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.guide-row {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 12px;
+}
+
+.guide dt {
+  font-weight: 700;
+}
+
+.guide dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+kbd {
+  font-family: var(--font-code);
+  font-size: 11px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg);
 }
 
 .doc-scroller {
@@ -477,6 +696,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.panel-footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .link-button {
   justify-self: end;
   padding: 0;
@@ -489,6 +714,18 @@ body {
 }
 
 /* 通知とダイアログ */
+.toast-action {
+  margin-left: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .toast {
   position: fixed;
   left: 50%;

@@ -13,6 +13,11 @@ const CLICK_SLOP = 4
 
 interface Props {
   source: string
+  /** 表示中のタブか。非表示のタブはハイライトを描かない */
+  active: boolean
+  /** 外部で更新されたか（D6・D17） */
+  stale: boolean
+  onReload: () => void
   marks: Mark[]
   activeId: string | undefined
   onCreate: (mark: Mark) => void
@@ -27,9 +32,7 @@ interface Layout {
   ticks: { id: string; ratio: number }[]
 }
 
-let nextId = 1
-
-export function DocumentView({ source, marks, activeId, onCreate, onMemo, onDelete, scrollRequest }: Props) {
+export function DocumentView({ source, active, stale, onReload, marks, activeId, onCreate, onMemo, onDelete, scrollRequest }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -51,19 +54,23 @@ export function DocumentView({ source, marks, activeId, onCreate, onMemo, onDele
     if (!host) return
     host.replaceChildren(rendered.root)
     indexRef.current = new TextIndex(rendered.root)
-    scrollerRef.current?.scrollTo({ top: 0 })
     setPopover(undefined)
     return () => {
       if (pendingRef.current) window.clearTimeout(pendingRef.current.timer)
       pendingRef.current = undefined
-      clearHighlights()
     }
   }, [rendered])
 
+  // 描画前にほかのタブの後片付けが済むよう、レイアウトエフェクトで消す
+  useLayoutEffect(() => {
+    if (active) return () => clearHighlights()
+  }, [active])
+
+  // CSSのハイライトは画面全体で共有されるため、表示中のタブだけが描く
   useLayoutEffect(() => {
     const index = indexRef.current
-    if (index) paintHighlights(index, marks, activeId ?? popover?.id)
-  }, [marks, activeId, popover, rendered])
+    if (index && active) paintHighlights(index, marks, activeId ?? popover?.id)
+  }, [active, marks, activeId, popover, rendered])
 
   const measure = useCallback(() => {
     const index = indexRef.current
@@ -84,7 +91,7 @@ export function DocumentView({ source, marks, activeId, onCreate, onMemo, onDele
     setLayout(next)
   }, [])
 
-  useLayoutEffect(measure, [marks, rendered, measure])
+  useLayoutEffect(measure, [active, marks, rendered, measure])
 
   useEffect(() => {
     const content = contentRef.current
@@ -102,7 +109,7 @@ export function DocumentView({ source, marks, activeId, onCreate, onMemo, onDele
       if (!offsets) return
       // まったく同じ範囲のMarkがすでにあれば、重複して作らない
       if (marksRef.current.some((m) => !m.lost && m.start === offsets.start && m.end === offsets.end)) return
-      const mark = buildMark(`m${nextId++}`, offsets, index, rendered)
+      const mark = buildMark(crypto.randomUUID(), offsets, index, rendered)
       if (mark) onCreate(mark)
     },
     [onCreate, rendered],
@@ -210,7 +217,15 @@ export function DocumentView({ source, marks, activeId, onCreate, onMemo, onDele
   const popoverMark = popover && marks.find((m) => m.id === popover.id)
 
   return (
-    <div className="doc-pane">
+    <div className="doc-pane" hidden={!active}>
+      {stale && (
+        <div className="stale-bar" role="status">
+          この文書は更新されました
+          <button type="button" className="link-button stale-reload" onClick={onReload}>
+            再読込
+          </button>
+        </div>
+      )}
       <div className="doc-scroller" ref={scrollerRef}>
         <div className="doc-content" ref={contentRef}>
           <div

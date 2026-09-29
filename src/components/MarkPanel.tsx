@@ -6,10 +6,11 @@ interface Props {
   onSelect: (id: string) => void
   onMemo: (id: string, memo: string) => void
   onDelete: (id: string) => void
+  onClear: () => void
 }
 
 /** Mark一覧（D11）。並びは文書順で、位置不明のMarkは分けて表示する */
-export function MarkPanel({ marks, activeId, onSelect, onMemo, onDelete }: Props) {
+export function MarkPanel({ marks, activeId, onSelect, onMemo, onDelete, onClear }: Props) {
   const found = marks.filter((m) => !m.lost)
   const lost = marks.filter((m) => m.lost)
 
@@ -35,6 +36,13 @@ export function MarkPanel({ marks, activeId, onSelect, onMemo, onDelete }: Props
           </ol>
         </>
       )}
+      {marks.length > 0 && (
+        <div className="panel-footer">
+          <button type="button" className="link-button" onClick={onClear}>
+            新しいReviewを始める
+          </button>
+        </div>
+      )}
     </aside>
   )
 }
@@ -45,7 +53,7 @@ function MarkItem({
   onSelect,
   onMemo,
   onDelete,
-}: { mark: Mark; active: boolean } & Omit<Props, 'marks' | 'activeId'>) {
+}: { mark: Mark; active: boolean } & Omit<Props, 'marks' | 'activeId' | 'onClear'>) {
   const lines = mark.startLine === mark.endLine ? `L${mark.startLine}` : `L${mark.startLine}–${mark.endLine}`
   return (
     <li className={active ? 'mark-item is-active' : 'mark-item'}>

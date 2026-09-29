@@ -43,7 +43,7 @@ export function renderMarkdown(source: string, doc: Document = document): Render
 
   const root = doc.createElement('article')
   const textSources = new WeakMap<Text, TextSource>()
-  appendHast(hast, root, undefined, { doc, source, textSources })
+  appendHast(hast, root, undefined, { doc, source, textSources, preformatted: false })
 
   return {
     root,
@@ -58,6 +58,8 @@ interface BuildContext {
   doc: Document
   source: string
   textSources: WeakMap<Text, TextSource>
+  /** コードの中では改行をそのまま残す */
+  preformatted: boolean
 }
 
 type Position = { start: number; end: number }
@@ -79,13 +81,20 @@ function appendHast(node: HastNodes, parent: Node, inherited: Position | undefin
     case 'element': {
       const el = ctx.doc.createElement(node.tagName)
       applyProperties(el, node)
-      for (const child of node.children) appendHast(child, el, pos, ctx)
+      const inner = ctx.preformatted || node.tagName === 'pre' || node.tagName === 'code'
+      const childCtx = inner === ctx.preformatted ? ctx : { ...ctx, preformatted: inner }
+      for (const child of node.children) appendHast(child, el, pos, childCtx)
       parent.appendChild(el)
       return
     }
     case 'text': {
+      const info = pos ? locateText(node.value, pos, ctx.source) : undefined
+      if (info?.exact && !ctx.preformatted) {
+        appendJoinedText(node.value, info.start, parent, ctx)
+        return
+      }
       const text = ctx.doc.createTextNode(node.value)
-      if (pos) ctx.textSources.set(text, locateText(node.value, pos, ctx.source))
+      if (info) ctx.textSources.set(text, info)
       parent.appendChild(text)
       return
     }
@@ -93,6 +102,32 @@ function appendHast(node: HastNodes, parent: Node, inherited: Position | undefin
       // comment / doctype / raw は描画しない
       return
   }
+}
+
+/** 日本語の文字（かな・漢字・全角記号など） */
+const CJK = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/
+
+/**
+ * 段落の途中の改行は、前後が日本語の文字ならスペースにせず詰めて表示する（D17）。
+ * 元Markdownとの位置の対応を保つため、改行を除いた部分を別々のテキストノードにする
+ */
+function appendJoinedText(value: string, start: number, parent: Node, ctx: BuildContext) {
+  const push = (from: number, to: number) => {
+    if (from >= to) return
+    const text = ctx.doc.createTextNode(value.slice(from, to))
+    ctx.textSources.set(text, { start: start + from, end: start + to, exact: true })
+    parent.appendChild(text)
+  }
+  let from = 0
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] !== '\n') continue
+    const breakStart = value[i - 1] === '\r' ? i - 1 : i
+    if (CJK.test(value[breakStart - 1] ?? '') && CJK.test(value[i + 1] ?? '')) {
+      push(from, breakStart)
+      from = i + 1
+    }
+  }
+  push(from, value.length)
 }
 
 /** テキストノードの内容が、元Markdownの範囲内のどこにあるかを特定する */
