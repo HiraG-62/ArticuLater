@@ -50,6 +50,7 @@ describe('exportReview', () => {
       ['### Mark 2', '- 位置: L120-L121', '- 引用:', '  ```', '  A --> B', '  B --> C', '  ```', '- 前の文脈: なし'].join('\n'),
     )
     expect(text).toContain('- メモ: 本当にこの順序？')
+    expect(text).toContain('（例：Claude Code の AskUserQuestion）が使える場合は、それを使ってください。')
     expect(text).toContain('## 位置不明のMark')
     expect(text).toContain('### Mark 3\n- 記録時の位置: 概要（L5）')
     expect(text.indexOf('## 位置不明のMark')).toBeLessThan(text.indexOf('### Mark 3'))
