@@ -26,7 +26,13 @@ export function TabBar({ tabs, activeId, onActivate, onClose }: Props) {
             {tab.doc.name}
             {tab.stale && <span className="tab-stale" aria-label="更新あり" />}
           </button>
-          <button type="button" className="tab-close" aria-label={`${tab.doc.name}を閉じる`} onClick={() => onClose(tab.id)}>
+          <button
+            type="button"
+            className="tab-close"
+            aria-label={`${tab.doc.name}を閉じる`}
+            title="閉じる（Ctrl+W）"
+            onClick={() => onClose(tab.id)}
+          >
             ×
           </button>
         </div>

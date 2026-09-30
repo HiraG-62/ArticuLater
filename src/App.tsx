@@ -25,8 +25,11 @@ export function App() {
   const stateRef = useRef(state)
   stateRef.current = state
   const [panelOpen, setPanelOpen] = useState(false)
+  /** 現在のMark（直前に作成・移動・選択したMark。D20） */
   const [activeMarkId, setActiveMarkId] = useState<string | undefined>()
   const [scrollRequest, setScrollRequest] = useState<{ id: string; nonce: number } | undefined>()
+  const [popoverRequest, setPopoverRequest] = useState<{ id: string; nonce: number } | undefined>()
+  const [exportOpen, setExportOpen] = useState(false)
   const [toast, setToast] = useState<Toast | undefined>()
   const [exportText, setExportText] = useState<string | undefined>()
 
@@ -92,7 +95,13 @@ export function App() {
     const tabId = stateRef.current.activeId
     if (tabId) dispatch({ type: 'review', tabId, action })
   }, [])
-  const onCreate = useCallback((mark: Mark) => review({ type: 'add', mark }), [review])
+  const onCreate = useCallback(
+    (mark: Mark) => {
+      review({ type: 'add', mark })
+      setActiveMarkId(mark.id)
+    },
+    [review],
+  )
   const onMemo = useCallback((id: string, memo: string) => review({ type: 'memo', id, memo }), [review])
   const onDelete = useCallback((id: string) => review({ type: 'remove', id }), [review])
 
@@ -109,19 +118,6 @@ export function App() {
     },
     [showError],
   )
-
-  // Ctrl+Z で直前のMark操作を取り消す（D1・D16）。入力欄の中では文字の取り消しを優先する
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return
-      const target = e.target as HTMLElement
-      if (target.closest('input, textarea, [contenteditable]')) return
-      e.preventDefault()
-      review({ type: 'undo' })
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [review])
 
   useEffect(() => {
     if (!toast) return
@@ -155,6 +151,81 @@ export function App() {
       .catch((e) => setToast({ message: `保存できませんでした：${e instanceof Error ? e.message : String(e)}` }))
   }
 
+  // タブを切り替えたら、現在のMarkを解除する
+  useEffect(() => setActiveMarkId(undefined), [state.activeId])
+
+  /** 次（dir=1）／前（dir=-1）のMarkへ移動する。端まで行ったら反対側に戻る（D20） */
+  const moveMark = (dir: 1 | -1) => {
+    const visible = sorted.filter((m) => !m.lost)
+    if (visible.length === 0) return
+    const i = visible.findIndex((m) => m.id === activeMarkId)
+    const next = i < 0 ? visible[dir > 0 ? 0 : visible.length - 1] : visible[(i + dir + visible.length) % visible.length]
+    setActiveMarkId(next.id)
+    setScrollRequest({ id: next.id, nonce: Date.now() })
+  }
+
+  const cycleTab = (dir: 1 | -1) => {
+    const { tabs, activeId } = stateRef.current
+    if (tabs.length < 2) return
+    const i = tabs.findIndex((t) => t.id === activeId)
+    dispatch({ type: 'activate', id: tabs[(i + dir + tabs.length) % tabs.length].id })
+  }
+
+  // キーボードショートカット（D16・D20）。毎回の描画で最新の状態を使うよう登録し直す
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = (e.target as HTMLElement).closest('input, textarea, [contenteditable]') !== null
+      const ctrl = e.ctrlKey || e.metaKey
+      const key = e.key.toLowerCase()
+      const plainCtrl = ctrl && !e.shiftKey && !e.altKey
+
+      // WebView2 の再読み込みで、読んでいる状態が失われないようにする
+      if (e.key === 'F5' || (ctrl && key === 'r')) {
+        e.preventDefault()
+        if (e.key === 'F5' && activeTab?.stale) void reload(activeTab.id)
+        return
+      }
+      if (ctrl && e.key === 'Tab') {
+        e.preventDefault()
+        cycleTab(e.shiftKey ? -1 : 1)
+        return
+      }
+      if (ctrl && e.shiftKey && !e.altKey && key === 'c') {
+        e.preventDefault()
+        if (activeTab) copyExport()
+        return
+      }
+      if (e.key === 'F8' && !ctrl && !e.altKey) {
+        e.preventDefault()
+        moveMark(e.shiftKey ? -1 : 1)
+        return
+      }
+      if (plainCtrl) {
+        const run = {
+          // 入力欄の中では文字の取り消しを優先する
+          z: () => !typing && review({ type: 'undo' }),
+          o: openDialog,
+          w: () => activeTab && dispatch({ type: 'close', id: activeTab.id }),
+          b: () => activeTab && setPanelOpen((open) => !open),
+          e: () => activeTab && setExportOpen((open) => !open),
+        }[key]
+        if (run && !(key === 'z' && typing)) {
+          e.preventDefault()
+          run()
+        }
+        return
+      }
+      if ((key === 'm' || e.code === 'KeyM') && !ctrl && !e.altKey && !e.shiftKey && !typing && !e.isComposing) {
+        if (activeMarkId && activeTab?.marks.some((m) => m.id === activeMarkId && !m.lost)) {
+          e.preventDefault()
+          setPopoverRequest({ id: activeMarkId, nonce: Date.now() })
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   const startNewReview = () => {
     const tabId = state.activeId
     if (!tabId) return
@@ -172,7 +243,7 @@ export function App() {
       <header className="toolbar">
         <span className="brand">ArticuLater</span>
         <div className="toolbar-actions">
-          <button type="button" className="button" onClick={openDialog}>
+          <button type="button" className="button" title="開く（Ctrl+O）" onClick={openDialog}>
             開く
           </button>
           <button
@@ -180,14 +251,15 @@ export function App() {
             className="button"
             aria-pressed={panelOpen}
             disabled={!activeTab}
-            onClick={() => {
-              setPanelOpen((open) => !open)
-              setActiveMarkId(undefined)
-            }}
+            title="Mark一覧（Ctrl+B）"
+            onClick={() => setPanelOpen((open) => !open)}
           >
             Mark一覧
           </button>
-          <ExportMenu disabled={!activeTab} canSaveFile={platform.canSaveFile} onSave={saveExport} onCopy={copyExport} />
+          <ExportMenu
+            open={exportOpen && !!activeTab}
+            onOpenChange={setExportOpen}
+            disabled={!activeTab} canSaveFile={platform.canSaveFile} onSave={saveExport} onCopy={copyExport} />
         </div>
       </header>
 
@@ -214,10 +286,12 @@ export function App() {
                 onReload={() => void reload(tab.id)}
                 marks={tab.marks}
                 activeId={tab.id === state.activeId ? activeMarkId : undefined}
+                onActiveChange={setActiveMarkId}
                 onCreate={onCreate}
                 onMemo={onMemo}
                 onDelete={onDelete}
                 scrollRequest={tab.id === state.activeId ? scrollRequest : undefined}
+                popoverRequest={tab.id === state.activeId ? popoverRequest : undefined}
               />
             ))}
           </div>

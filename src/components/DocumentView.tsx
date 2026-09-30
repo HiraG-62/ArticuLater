@@ -19,12 +19,16 @@ interface Props {
   stale: boolean
   onReload: () => void
   marks: Mark[]
+  /** 現在のMark（直前に作成・移動・選択したMark。D20） */
   activeId: string | undefined
+  onActiveChange: (id: string | undefined) => void
   onCreate: (mark: Mark) => void
   onMemo: (id: string, memo: string) => void
   onDelete: (id: string) => void
   /** 値が変わるたびに、そのMarkの位置へスクロールする */
   scrollRequest: { id: string; nonce: number } | undefined
+  /** 値が変わるたびに、そのMarkのポップオーバーを開く（`M` キー。D20） */
+  popoverRequest: { id: string; nonce: number } | undefined
 }
 
 interface Layout {
@@ -32,7 +36,20 @@ interface Layout {
   ticks: { id: string; ratio: number }[]
 }
 
-export function DocumentView({ source, active, stale, onReload, marks, activeId, onCreate, onMemo, onDelete, scrollRequest }: Props) {
+export function DocumentView({
+  source,
+  active,
+  stale,
+  onReload,
+  marks,
+  activeId,
+  onActiveChange,
+  onCreate,
+  onMemo,
+  onDelete,
+  scrollRequest,
+  popoverRequest,
+}: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -172,6 +189,7 @@ export function DocumentView({ source, active, stale, onReload, marks, activeId,
         if (moved > CLICK_SLOP) return
         const mark = markAtPoint(e.clientX, e.clientY)
         const content = contentRef.current
+        onActiveChange(mark?.id)
         if (mark && content) {
           const box = content.getBoundingClientRect()
           setPopover({ id: mark.id, x: e.clientX - box.left, y: e.clientY - box.top })
@@ -193,7 +211,38 @@ export function DocumentView({ source, active, stale, onReload, marks, activeId,
     }
     window.addEventListener('mouseup', onMouseUp)
     return () => window.removeEventListener('mouseup', onMouseUp)
-  }, [createFromRange, markAtPoint])
+  }, [createFromRange, markAtPoint, onActiveChange])
+
+  // キーボードで選択した範囲は、Enter でMarkにする（D20）
+  useEffect(() => {
+    if (!active) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return
+      if ((e.target as HTMLElement).closest('input, textarea, button, [contenteditable]')) return
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) return
+      e.preventDefault()
+      createFromRange(selection.getRangeAt(0).cloneRange())
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [active, createFromRange])
+
+  useEffect(() => {
+    if (!popoverRequest) return
+    const mark = marksRef.current.find((m) => m.id === popoverRequest.id)
+    const rects = mark && indexRef.current?.rangeFor(mark.start, mark.end)?.getClientRects()
+    const content = contentRef.current
+    if (!rects || rects.length === 0 || !content) return
+    const last = rects[rects.length - 1]
+    const box = content.getBoundingClientRect()
+    setPopover({ id: popoverRequest.id, x: last.left - box.left, y: last.bottom - box.top })
+    const scroller = scrollerRef.current
+    const view = scroller?.getBoundingClientRect()
+    if (scroller && view && (last.bottom < view.top || last.top > view.bottom - 160)) {
+      scroller.scrollTo({ top: scroller.scrollTop + last.top - view.top - scroller.clientHeight / 3, behavior: 'smooth' })
+    }
+  }, [popoverRequest])
 
   useEffect(() => {
     if (!scrollRequest) return

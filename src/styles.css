@@ -162,6 +162,17 @@ body {
   cursor: pointer;
 }
 
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.menu-key {
+  color: var(--muted);
+}
+
 .menu-item:hover,
 .menu-item:focus-visible {
   background: var(--chrome);
@@ -374,6 +385,11 @@ body {
   padding-top: 20px;
   border-top: 1px solid var(--line);
   font-size: 13px;
+}
+
+.guide-keys {
+  margin-top: 0;
+  padding-top: 12px;
 }
 
 .guide-row {
